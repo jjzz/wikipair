@@ -33,30 +33,45 @@ The dsl-format is supported by many software, including GoldenDict.
 ## Useful Links
 
 * Offline Wikipedia in zim format,
+
     http://www.kiwix.org
+
     http://download.kiwix.org/zim/
+
 * GoldenDict,
+
     https://github.com/goldendict/goldendict
+
 * Wiki Dump,
+
     https://dumps.wikimedia.org/backup-index-bydb.html
+
     https://dumps.wikimedia.org/enwiki/latest/
+
 * Wiki Dump Schema,
+
     https://www.mediawiki.org/wiki/Manual:Database_layout
+
     https://www.mediawiki.org/wiki/Category:MediaWiki_database_tables
+
     https://www.mediawiki.org/wiki/Manual:Page_table
+
     https://www.mediawiki.org/wiki/Manual:Langlinks_table
+
 * List of ISO 639-1 codes (2-letter language code),
+
     https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes
+
 * DSL Dictionary format,
+
     http://lingvo.helpmax.net/en/troubleshooting/dsl-compiler/your-first-dsl-dictionary/
 
 ## More on Data Source/Output, as of 2017.12.10,
 
 #### data source: page.sql.gz
 
-data entry example:
-
 ```text
+# data entry example
 # id, namespace, page-title-en, ...
 29554612,0,'Halfmoon Bluff','',0,0,0,0.973692123679,'20171129113218','20171117050404',691742441,708,'wikitext',NULL
 ```
@@ -69,9 +84,8 @@ Only 40% of the main articles are real articles, 60% of them are redirects
 
 #### data source: langlinks.sql.gz
 
-data entry example:
-
 ```text
+# data entry example
 # id, lang-code, page-title
 29554612,'de','Halfmoon Bluff'
 29554612,'nn','Halfmoon Bluff'
@@ -80,7 +94,7 @@ data entry example:
 
 There are 26,323,171 entries from 300+ different languages
 
-Languages with 100k+ entries in langlinks dump are listed below. For any specific language, around 80% of the entries could be matched in main namespace with English Wikpedia, and then built into the final dsl.
+Languages with 100k+ entries in langlinks dump are listed below.
 
 ```text
 1491578 fr  643360 ar   352434 hu          224223 bg      131035 hr
@@ -95,6 +109,9 @@ Languages with 100k+ entries in langlinks dump are listed below. For any specifi
  866408 fa  368088 tr   230774 eo          144059 la      111606 kk
  703217 zh  360848 fi   227606 zh-min-nan  131526 th      101220 uz
 ```
+
+For any specific language, around 80% of the entries could be matched in main
+namespace with English Wikpedia, and then built into the final dsl.
 
 For a full list of all available languages, run `wikipair --stat-lang`
 
