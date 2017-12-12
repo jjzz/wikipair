@@ -1,0 +1,196 @@
+#!/bin/bash
+
+function usage () {
+    bname=$(basename "$0")
+    echo "\
+usage:
+    $bname LANGCODE --langname LANGNAME
+        # LANGCODE: most of them are ISO 649-1, such as zh|ru|fr|...
+        # LANGNAME: such as 'Russian', will be written to DSL's header
+        # check result from --stat-lang
+        # also check wikipedia: List_of_ISO_639-1_codes
+
+    --langname <name>     # used in DSL dictionary header
+    --stat-lang           # statistic of lang in langlinks.sql.gz
+    --stat-namespace      # statistic of namespace in page.sql.gz
+
+    -h|--help
+
+example:
+    $bname ru --langname Russian
+    $bname es --langname Spanish
+"
+}
+
+function ensure_downloaded () {
+    if [ ! -f $pagedump ]; then
+        url1=https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-page.sql.gz
+        aria2c -j 2 -c --check-certificate=false $url1 || exit 1
+    fi
+    if [ ! -f $langlinksdump ]; then
+        url2=https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-langlinks.sql.gz
+        aria2c -j 2 -c --check-certificate=false $url2 || exit 1
+    fi
+}
+
+# transform from wiki dump sql (stdin) to csv format (stdout)
+function dump2csv () {
+    cat - \
+        | sed 's/),(/),\n(/g' \
+        | sed 's/^INSERT INTO `[a-zA-Z0-9_-]*` VALUES //' \
+        | sed -n '/^(/p' \
+        | sed 's/_/ /g; s/^(//; s/)[,;]$//'
+}
+
+# Statistic of 'namespace' in langlinks.sql.gz
+function stat_namespace () {
+    echo "wait about 5 minutes ..."
+    time zcat $pagedump \
+        | dump2csv \
+        | awk -F, '{ print $2 }' \
+        | sort \
+        | uniq -c \
+        | sort -k2n \
+        | tee stat.namespace
+}
+
+# Statistic of 'lang' in langlinks.sql.gz
+# There are 300+ diff lang in existence in this dump
+function stat_lang () {
+    echo "wait about 1 minutes ..."
+    time zcat $langlinksdump \
+        | dump2csv \
+        | awk -F"'" '{ print $2 }' \
+        | sort \
+        | uniq -c \
+        | sort -nr \
+        | tee stat.lang
+}
+
+function make_dsl_dict () {
+    # extract all English entries from page.sql.gz
+    if [ ! -f title.en ]; then
+        echo "extracting page.sql.gz, wait about 20 minutes ..."
+        time zcat "$pagedump" \
+            | dump2csv \
+            | egrep -o "^[0-9]+,0,'([^']*\\\\')*[^']*'" \
+            | sed 's/|/-/g; s/\\\\/|/g; s/\\//g; s/|/\\/g' \
+            | sed -r "s/([0-9]+),0,'/\1|/" \
+            | sed "s/'$//" \
+            > title.en
+    fi
+
+    # extract translation from langlinks.sql.gz
+    if [ ! -f title.$langcode ]; then
+        echo "extracting langlink.sql.gz ..."
+        time zcat "$langlinksdump" \
+            | dump2csv \
+            | egrep -o "^[0-9]+,'$langcode','([^']*\\\\')*[^']*'" \
+            | sed 's/|/-/g; s/\\\\/|/g; s/\\//g; s/|/\\/g' \
+            | sed -r "s/([0-9]+),'$langcode','/\1|/" \
+            | sed "s/'$//" \
+            > title.$langcode
+    fi
+
+    restxt=wikipair_$langcode.txt
+    resdsl=wikipair_$langcode.dsl
+    resann=wikipair_$langcode.ann
+    resbmp=wikipair_$langcode.bmp
+
+    # produce plain text with format "id|title-en|title-other"
+    # Note:
+    #   The entries in langlinks.sql are from all namespaces,
+    #   so only around 80% of them will match those entries from main
+    #   namespace in page.sql
+    echo "producing txt/dsl ..."
+    join -t '|' \
+        <(sort -t '|' -k 1,1 title.en) \
+        <(sort -t '|' -k 1,1 title.$langcode) \
+        -o '1.1 1.2 2.2' \
+        > $restxt
+
+    # produce dsl from txt
+    {
+        echo "#NAME \"Wikipair (en-$langcode)\""
+        echo "#INDEX_LANGUAGE \"English\""
+        echo "#CONTENTS_LANGUAGE \"$langname\""
+        echo
+    } > $resdsl
+    dos2unix -q -m $resdsl  # DSL need a BOM head
+    cat $restxt \
+        | LC_ALL=C awk -F'|' '{ if (toupper($2) != toupper($3)) print $2 "\n\t<<" $3 ">>\n" $3 "\n\t<<" $2 ">>" }' \
+        | sed 's/(/\\(/g; s/)/\\)/g' \
+        >> $resdsl
+
+    # produce ann - a plain text description file
+    if [ ! -f $resann ]; then
+        echo "Wikipair (en-$langcode)" >> $resann
+        echo >> $resann
+        echo "build time: " $(date +%F\ %T) >> $resann
+    fi
+
+    # produce bmp - an icon
+    if [ ! -f $resbmp ]; then
+        echo '
+            H4sICOfGLVoAA3dpa2l0aXRsZXBhaXIuYm1wAJWUyy8DURTGh8TKjo0/R7qx
+            srGUeD9TLJCg06q3hIVXUhIJIl0o0hQLqh4LYUUssCERIR4RhFCP8Tq+O3M8
+            2umd1JfcpnPv/d1zznfPjC0zlKToUjEqMVIw0jAS9F9FScd6arIxvmXLyKpV
+            /qnEqGeS6P2dtFfZIkm45xcqaqTiRrq5i58DZG8TnEDddHEVDweouksQhS7K
+            d4o/pU10dmnNoaCabpFegZMGfTSzQgUuHW2m61sZByOqOjlSn5cnpxZ/UaRi
+            4j4/qbKda/JMRBwdWBHhMV/eKs42cWUtHGzEH8EF17lQBDZx0ItGFbqNeQ4a
+            n+XJ0AblqXwnf42N9AVoVYfYla/SdFDMqP0igxI3HZ9b+En6PcACI+HZVTFT
+            30NHp1G7Yt57+IlyHeyRf8m8LuOeNboPMwpHJhfi4da3KaeBNncp/CiaDCge
+            p4LW3Nae2GVkCGka2VsZDSzLuP0jvic4cnjCk0DLW9jh+TUz9/Eh2gHrKGvn
+            IOLoh0fKruMGf30zx/MtcDw0HNrnR2ofJ9E2JKvPO8c24vaRAeQaEAT6s3PY
+            whdoLMAoynL0xoZicRD62ngBjPSaPeYtsu/LqJ85FBdT8u8ZmhOBjSr/w1lL
+            Ub4AscPyuboFAAA=' \
+            | sed 's/ //g' \
+            | base64 -d \
+            | gzip -d \
+            > $resbmp
+    fi
+}
+
+## main
+
+pagedump=enwiki-latest-page.sql.gz
+langlinksdump=enwiki-latest-langlinks.sql.gz
+
+cmddump2csv="$(dirname $(realpath $0))/wikidump2csv"
+if [ ! -f $cmddump2csv ]; then
+    echo "$cmddump2csv needed to parse wiki dump"
+    exit 1
+fi
+
+if [ "$#" = "0" ]; then
+    usage
+    exit 0
+fi
+
+while [ $# -ge 1 ]; do
+    if [ "$1" = "-h" -o "$1" = "--help" ]; then
+        usage
+        exit 0
+    elif [ "$1" = "--stat-namespace" ]; then
+        ensure_downloaded
+        stat_namespace
+        exit 0
+    elif [ "$1" = "--stat-lang" ]; then
+        ensure_downloaded
+        stat_lang
+        exit 0
+    elif [ "$1" = "--langname" ]; then
+        langname="$2"
+        shift 2
+    elif [[ ! "$1" =~ ^[a-z]{2}[a-z-]*$ ]]; then
+        # langcode are like "fr", "zh-min-nan", "ceb", etc
+        usage
+        exit 1
+    else
+        langcode="$1"
+        shift
+    fi
+done
+
+ensure_downloaded
+make_dsl_dict

@@ -1,0 +1,15 @@
+#!/bin/bash
+
+if [ "$1" = "-h" -o "$1" = "--help" ]; then
+    echo "parse wiki dump (sql), export csv format"
+    echo
+    echo "usage: "
+    echo "    zcat wikidump.sql.gz | "$(basename "$0")
+    exit 0
+fi
+
+cat - \
+    | sed 's/),(/),\n(/g' \
+    | sed 's/^INSERT INTO `[a-zA-Z0-9_-]*` VALUES //' \
+    | sed -n '/^(/p' \
+    | sed 's/_/ /g; s/^(//; s/)[,;]$//'
